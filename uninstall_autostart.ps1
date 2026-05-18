@@ -1,10 +1,19 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "SilentlyContinue"
 
+$brandingDir = Join-Path $PSScriptRoot "branding"
+$shortcutNameFile = Join-Path $brandingDir "shortcut-name.txt"
+$desktopShortcutName = if (Test-Path $shortcutNameFile) {
+    ((Get-Content $shortcutNameFile -TotalCount 1).Trim() + ".lnk")
+} else {
+    "News Blocks.lnk"
+}
 $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
 $shortcutPath = Join-Path $startupFolder "News Blocks.lnk"
 $vbsPath = Join-Path $PSScriptRoot "start_silent.vbs"
-$desktopUrlPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "News Blocks.url"
+$desktopShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopShortcutName
+$legacyDesktopShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "News Blocks.lnk"
+$legacyDesktopUrlPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "News Blocks.url"
 
 $removed = $false
 
@@ -27,9 +36,21 @@ if (Test-Path $vbsPath) {
     $removed = $true
 }
 
-if (Test-Path $desktopUrlPath) {
-    Remove-Item $desktopUrlPath -Force
-    Write-Host "Removed desktop URL shortcut." -ForegroundColor Green
+if (Test-Path $desktopShortcutPath) {
+    Remove-Item $desktopShortcutPath -Force
+    Write-Host "Removed desktop launch shortcut." -ForegroundColor Green
+    $removed = $true
+}
+
+if (($desktopShortcutPath -ne $legacyDesktopShortcutPath) -and (Test-Path $legacyDesktopShortcutPath)) {
+    Remove-Item $legacyDesktopShortcutPath -Force
+    Write-Host "Removed legacy desktop launch shortcut." -ForegroundColor Green
+    $removed = $true
+}
+
+if (Test-Path $legacyDesktopUrlPath) {
+    Remove-Item $legacyDesktopUrlPath -Force
+    Write-Host "Removed legacy desktop URL shortcut." -ForegroundColor Green
     $removed = $true
 }
 

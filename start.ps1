@@ -9,7 +9,6 @@ $ErrorActionPreference = "Stop"
 $port = 7789
 $url = "http://127.0.0.1:$port"
 $pythonExe = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
-$pythonwExe = Join-Path $PSScriptRoot ".venv\Scripts\pythonw.exe"
 $pipExe = Join-Path $PSScriptRoot ".venv\Scripts\pip.exe"
 $stampFile = Join-Path $PSScriptRoot ".venv\.requirements.stamp"
 $requirementsFile = Join-Path $PSScriptRoot "requirements.txt"
@@ -18,6 +17,64 @@ function Write-Info($message, $color = "Gray") {
     if (-not $Quiet) {
         Write-Host $message -ForegroundColor $color
     }
+}
+
+function Get-BrowserExecutable {
+    param([string[]]$Candidates)
+
+    foreach ($candidate in $Candidates) {
+        $command = Get-Command $candidate -ErrorAction SilentlyContinue
+        if ($command) {
+            return $command.Source
+        }
+
+        foreach ($registryRoot in @(
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths",
+            "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths"
+        )) {
+            $registryPath = Join-Path $registryRoot $candidate
+            $registryItem = Get-ItemProperty -Path $registryPath -ErrorAction SilentlyContinue
+            if ($registryItem -and $registryItem.'(default)' -and (Test-Path $registryItem.'(default)')) {
+                return $registryItem.'(default)'
+            }
+        }
+
+        foreach ($basePath in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LocalAppData)) {
+            if (-not $basePath) {
+                continue
+            }
+
+            $matches = Get-ChildItem -Path $basePath -Filter $candidate -Recurse -File -ErrorAction SilentlyContinue |
+                Select-Object -First 1 -ExpandProperty FullName
+            if ($matches) {
+                return $matches
+            }
+        }
+    }
+
+    return $null
+}
+
+function Open-AppHomePage {
+    $edgeExe = Get-BrowserExecutable @("msedge.exe")
+    if ($edgeExe) {
+        Start-Process -FilePath $edgeExe -ArgumentList @("--app=$url", "--new-window") | Out-Null
+        return
+    }
+
+    $chromeExe = Get-BrowserExecutable @("chrome.exe")
+    if ($chromeExe) {
+        Start-Process -FilePath $chromeExe -ArgumentList @("--app=$url", "--new-window") | Out-Null
+        return
+    }
+
+    $firefoxExe = Get-BrowserExecutable @("firefox.exe")
+    if ($firefoxExe) {
+        Start-Process -FilePath $firefoxExe -ArgumentList @("-new-window", $url) | Out-Null
+        return
+    }
+
+    Start-Process $url
 }
 
 function Test-ServiceRunning {
@@ -68,7 +125,7 @@ Write-Info ""
 if (Test-ServiceRunning) {
     Write-Info "Service is already running in the background." "Green"
     if ($OpenBrowser) {
-        Start-Process $url
+        Open-AppHomePage
     }
     exit 0
 }
@@ -77,7 +134,7 @@ Ensure-Venv
 Ensure-Requirements
 
 Write-Info "Starting background service..." "Yellow"
-Start-Process -FilePath $pythonwExe -ArgumentList "app.py" -WorkingDirectory $PSScriptRoot -WindowStyle Hidden | Out-Null
+Start-Process -FilePath $pythonExe -ArgumentList @("-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "$port") -WorkingDirectory $PSScriptRoot -WindowStyle Hidden | Out-Null
 
 if (Wait-ForService) {
     Write-Info ""
@@ -88,7 +145,7 @@ if (Wait-ForService) {
     Write-Info ""
 
     if ($OpenBrowser) {
-        Start-Process $url
+        Open-AppHomePage
     }
     exit 0
 }

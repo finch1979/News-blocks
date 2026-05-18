@@ -8,8 +8,8 @@ echo =========================================
 echo.
 
 REM 刪除啟動資料夾中的快捷方式
-if exist "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\方塊磚新聞.lnk" (
-    del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\方塊磚新聞.lnk"
+if exist "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\News Blocks.lnk" (
+    del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\News Blocks.lnk"
     echo ✓ 已移除開機啟動快捷方式
 ) else (
     echo • 未找到開機啟動快捷方式
@@ -21,10 +21,16 @@ if exist "%~dp0start_silent.vbs" (
     echo ✓ 已刪除啟動腳本
 )
 
-REM 刪除桌面網址捷徑
+REM 刪除桌面啟動捷徑
+if exist "%USERPROFILE%\Desktop\News Blocks.lnk" (
+    del "%USERPROFILE%\Desktop\News Blocks.lnk"
+    echo ✓ 已刪除桌面啟動捷徑
+)
+
+REM 刪除舊版桌面網址捷徑
 if exist "%USERPROFILE%\Desktop\News Blocks.url" (
     del "%USERPROFILE%\Desktop\News Blocks.url"
-    echo ✓ 已刪除桌面網址捷徑
+    echo ✓ 已刪除舊版桌面網址捷徑
 )
 
 echo.

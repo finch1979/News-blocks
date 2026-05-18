@@ -6,10 +6,20 @@ param(
 $ErrorActionPreference = "Stop"
 
 $startupShortcutName = "News Blocks.lnk"
-$desktopShortcutName = "News Blocks.url"
+$brandingDir = Join-Path $PSScriptRoot "branding"
+$shortcutNameFile = Join-Path $brandingDir "shortcut-name.txt"
+$iconPath = Join-Path $brandingDir "desktop-logo.ico"
+$desktopShortcutName = if (Test-Path $shortcutNameFile) {
+    ((Get-Content $shortcutNameFile -TotalCount 1).Trim() + ".lnk")
+} else {
+    "News Blocks.lnk"
+}
 $startupFolder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
 $shortcutPath = Join-Path $startupFolder $startupShortcutName
-$desktopUrlPath = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopShortcutName
+$desktopShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopShortcutName
+$legacyDesktopUrlPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "News Blocks.url"
+$legacyDesktopShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "News Blocks.lnk"
+$desktopLauncherPath = Join-Path $PSScriptRoot "open_app.bat"
 
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
@@ -26,7 +36,7 @@ if (-not $isAdmin) {
 Write-Host "This script will:" -ForegroundColor White
 Write-Host "  1. Create a silent startup script" -ForegroundColor Gray
 Write-Host "  2. Add a shortcut to the Windows Startup folder" -ForegroundColor Gray
-Write-Host "  3. Create a desktop URL shortcut" -ForegroundColor Gray
+Write-Host "  3. Create a desktop launch shortcut" -ForegroundColor Gray
 Write-Host ""
 
 if (-not $NonInteractive) {
@@ -44,7 +54,7 @@ Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = "$PSScriptRoot"
 WshShell.Run "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$PSScriptRoot\start.ps1"" -Quiet", 0, False
 "@
-    $vbsContent | Out-File -FilePath "$PSScriptRoot\start_silent.vbs" -Encoding ASCII -Force
+    $vbsContent | Out-File -FilePath "$PSScriptRoot\start_silent.vbs" -Encoding Unicode -Force
 
     Write-Host "Creating Startup folder shortcut..." -ForegroundColor Yellow
     $WshShell = New-Object -ComObject WScript.Shell
@@ -54,20 +64,30 @@ WshShell.Run "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "
     $Shortcut.Description = "Start News Blocks in the background"
     $Shortcut.Save()
 
-    Write-Host "Creating desktop URL shortcut..." -ForegroundColor Yellow
-    $urlContent = @"
-[InternetShortcut]
-URL=http://127.0.0.1:7789
-IconFile=$env:SystemRoot\System32\SHELL32.dll
-IconIndex=220
-"@
-    $urlContent | Out-File -FilePath $desktopUrlPath -Encoding ASCII -Force
+    if (Test-Path $legacyDesktopUrlPath) {
+        Remove-Item $legacyDesktopUrlPath -Force
+    }
+    if (($desktopShortcutPath -ne $legacyDesktopShortcutPath) -and (Test-Path $legacyDesktopShortcutPath)) {
+        Remove-Item $legacyDesktopShortcutPath -Force
+    }
+
+    Write-Host "Creating desktop launch shortcut..." -ForegroundColor Yellow
+    $DesktopShortcut = $WshShell.CreateShortcut($desktopShortcutPath)
+    $DesktopShortcut.TargetPath = $desktopLauncherPath
+    $DesktopShortcut.WorkingDirectory = $PSScriptRoot
+    $DesktopShortcut.Description = "Start News Blocks and open the app"
+    if (Test-Path $iconPath) {
+        $DesktopShortcut.IconLocation = "$iconPath,0"
+    } else {
+        $DesktopShortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,220"
+    }
+    $DesktopShortcut.Save()
 
     Write-Host ""
     Write-Host "Auto start is configured." -ForegroundColor Green
     Write-Host ""
     Write-Host "News Blocks will start automatically after Windows sign-in." -ForegroundColor White
-    Write-Host "Desktop shortcut: $desktopUrlPath" -ForegroundColor Cyan
+    Write-Host "Desktop shortcut: $desktopShortcutPath" -ForegroundColor Cyan
     Write-Host "App URL: http://127.0.0.1:7789" -ForegroundColor Cyan
     Write-Host ""
 } catch {
